@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_from_directory, redirect
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import os
 import requests
@@ -14,7 +14,6 @@ load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GNEWS_API_KEY = os.getenv("GNEWS_API_KEY")
 CURRENTS_API_KEY = os.getenv("CURRENTS_API_KEY")
-FRONTEND_URL = os.getenv("FRONTEND_URL", "https://your-frontend-url.com")
 
 app = Flask(__name__)
 CORS(app)
@@ -30,9 +29,10 @@ country_codes = {
     "australia": "au", "japan": "jp", "china": "cn"
 }
 
+# ✅ Safer root endpoint
 @app.route('/')
 def home():
-    return redirect(FRONTEND_URL, code=302)
+    return jsonify({"message": "Hello from Nova X backend!"})
 
 @app.route('/datetime', methods=['GET'])
 def get_datetime():
@@ -42,14 +42,10 @@ def get_datetime():
     return jsonify({'response': f"📅 Date: {date} | ⏰ Time: {time}"})
 
 
-# 📰 Fetch fallback news from Currents API
+# 📰 Currents fallback
 def fetch_currents_news(query=None, country=None):
-    headers = {
-        'Authorization': CURRENTS_API_KEY
-    }
-    params = {
-        'language': 'en'
-    }
+    headers = { 'Authorization': CURRENTS_API_KEY }
+    params = { 'language': 'en' }
     if query:
         params['keywords'] = query
     elif country:
@@ -61,7 +57,7 @@ def fetch_currents_news(query=None, country=None):
     return '\n'.join(f"📰 {a['title']} - {a.get('author') or 'Unknown'}" for a in articles)
 
 
-# 🤖 Chatbot using Groq API
+# 🤖 Groq Chat Handler
 def handle_chat(message):
     chat_history.append({"role": "user", "content": message})
     system_prompt = {"role": "system", "content": "You are Nova X, a helpful AI assistant."}
@@ -87,6 +83,8 @@ def handle_chat(message):
     chat_history.append({"role": "assistant", "content": reply})
     return reply
 
+
+# ✅ Chat endpoint
 @app.route('/chat', methods=['POST'])
 @app.route('/api/ask', methods=['POST'])
 def chat():
@@ -96,7 +94,8 @@ def chat():
     try:
         reply = handle_chat(message)
         return jsonify({'response': reply})
-    except Exception:
+    except Exception as e:
+        print("Chat error:", e)
         return jsonify({'response': '❌ Error connecting to Groq Chat API.'}), 500
 
 
@@ -106,7 +105,6 @@ def reset_memory():
     return jsonify({"message": "🧠 Memory cleared!"})
 
 
-# 🌍 News by topic with fallback to Currents
 @app.route('/news/topic', methods=['GET'])
 def news_by_topic():
     topic = request.args.get('topic', '')
@@ -130,7 +128,6 @@ def news_by_topic():
             return jsonify({'response': '❌ Error fetching topic news.'}), 500
 
 
-# 🗺️ News by country with fallback to Currents
 @app.route('/news/country', methods=['GET'])
 def news_by_country():
     country = request.args.get('country', '').lower()
